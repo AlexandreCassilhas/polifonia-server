@@ -1,0 +1,125 @@
+PROJETO POLIFONIA
+=================
+
+Banco de Dados MySQL:
+====================
+
+- Instalação: XAMPP
+
+- Url para administrar o MySQL: http://localhost/phpmyadmin
+
+- Criar o Banco de Dados: polifonia_db
+
+
+Node.js:
+=======
+
+- Criar o diretório que receberá o backend da aplicação: /polifonia-server
+
+- Executar os seguintes comandos dentro do diretório:
+	npm init -y
+	npm install express mysql2 cors
+
+	* express: Ajuda a criar o servidor web.
+	* mysql2: Permite que o Node.js fale com o MySQL.
+	* cors: Permite que o teu Frontend (HTML) fale com o teu Backend (Node.js).
+
+Instalação de Pacotes necessários à Aplicação:
+=============================================
+
+npm install svg-captcha
+npm install bcrypt
+
+Criar o servidor server.js, com o seguinte código-base:
+======================================================
+
+	const express = require('express');
+	const mysql = require('mysql2');
+	const cors = require('cors');
+
+	const app = express();
+
+	// Permite que o servidor receba dados em formato JSON e de outras origens (CORS)
+	app.use(express.json());
+	app.use(cors());
+
+	// 1. Configuração da conexão com o Banco de Dados
+	const db = mysql.createConnection({
+    		host: 'localhost',
+    		user: 'root',      // Usuário padrão do XAMPP
+    		password: '',      // Senha padrão do XAMPP é vazia
+    		database: 'polifonia_db'
+	});
+
+	// Conectar ao MySQL
+	db.connect(err => {
+    		if (err) {
+        		console.error('Erro ao conectar ao MySQL:', err);
+        		return;
+    		}
+    		console.log('Conectado ao banco de dados MySQL da Polifonia!');
+	});
+
+	*** Aqui são escritas as diversas rotas do APP (vendas:get, vendas:post, login, etc)
+
+	// Servidor rodando na porta 3000
+	app.listen(3000, () => {
+   	 console.log('Servidor da Polifonia rodando em http://localhost:3000');
+	});	
+
+
+- Para subir o servidor: node server.js
+
+
+
+Scripts de Criação do Banco de Dados:
+====================================
+
+-- 1. Tabela de Utilizadores
+CREATE TABLE usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    login VARCHAR(50) UNIQUE NOT NULL,
+    senha VARCHAR(255) NOT NULL 
+);
+
+-- 2. Tabela de Perfis
+CREATE TABLE perfis (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome_perfil VARCHAR(50) NOT NULL
+);
+
+-- 3. Tabela de Ligação (Um utilizador pode ter vários perfis)
+CREATE TABLE usuario_perfis (
+    usuario_id INT,
+    perfil_id INT,
+    PRIMARY KEY (usuario_id, perfil_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (perfil_id) REFERENCES perfis(id) ON DELETE CASCADE
+);
+
+-- Inserindo perfis iniciais
+INSERT INTO perfis (nome_perfil) VALUES ('Administrador'), ('Vendedor');
+
+
+* Criando a estrutura para o Controle de Acesso:
+  =============================================
+
+
+-- 1. Atualizando a tabela de usuários
+ALTER TABLE usuarios 
+ADD COLUMN email VARCHAR(150) NOT NULLAfter nome,
+ADD COLUMN celular VARCHAR(20) NOT NULL After email,
+ADD COLUMN cpf VARCHAR(14) UNIQUE NOT NULL After celular,
+ADD COLUMN foto_perfil LONGTEXT NULL After senha, -- Armazenará a imagem em Base64
+ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+-- 2. Atualizando a tabela de vendas para ter auditoria também
+ALTER TABLE vendas 
+ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+-- 3. Limpar a coluna 'login' antiga se existir, pois usaremos o CPF
+ALTER TABLE usuarios DROP COLUMN login;
+
