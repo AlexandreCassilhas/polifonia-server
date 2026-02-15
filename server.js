@@ -103,7 +103,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-
+/*
 // Rota de LOGIN com Bcrypt e Validação de Captcha
 app.post('/login', (req, res) => {
     const { login, senha, captcha } = req.body; // 'login' aqui receberá o CPF vindo do frontend
@@ -142,6 +142,8 @@ app.post('/login', (req, res) => {
         }
     });
 });
+
+*/
 
 // --- ROTA DE CADASTRO DE USUÁRIOS (COM AUDITORIA) ---
 app.post('/usuarios', async (req, res) => {
