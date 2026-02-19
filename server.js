@@ -276,19 +276,31 @@ app.get('/dashboard-data', async (req, res) => {
             FROM produtos 
             WHERE estoque_atual <= estoque_minimo AND indicativo_exclusao = FALSE`;
 
+         // --- NOVA QUERY: SALDO DO LIVRO CAIXA (PERÍODO) ---
+        const sqlFinanceiro = `
+            SELECT 
+                SUM(CASE WHEN tl.tipo = 'Entrada' THEN lc.valor ELSE 0 END) as total_entradas,
+                SUM(CASE WHEN tl.tipo = 'Saída' THEN lc.valor ELSE 0 END) as total_saidas
+            FROM fin_livro_caixa lc
+            JOIN fin_tipos_lancamento tl ON lc.id_tipo_lancamento = tl.id
+            WHERE lc.indicativo_exclusao = FALSE 
+            AND lc.data_lancamento BETWEEN ? AND ?`;
+
          // Execução das consultas
         const [resHoje] = await db.promise().query(sqlHoje, [hoje, hoje, hoje, hoje]);
         const [resVendedores] = await db.promise().query(sqlVendedores, [dataInicio, dataFim]);
         const [resProdutos] = await db.promise().query(sqlTopProdutos, [dataInicio, dataFim]);
         const [resGrafico] = await db.promise().query(sqlGrafico);
         const [resAlerta] = await db.promise().query(sqlAlertaEstoque); // Executa o alerta
+        const [resFinanceiro] = await db.promise().query(sqlFinanceiro, [inicio, fim]);
 
         res.send({
             hoje: resHoje[0] || { qtd_vendas: 0, total_faturado: 0, ticket_medio: 0, total_custo: 0 },
             ranking: resVendedores,
             topProdutos: resProdutos,
             grafico: resGrafico,
-            estoqueCritico: resAlerta // Envia a lista de produtos críticos
+            estoqueCritico: resAlerta, // Envia a lista de produtos críticos
+            financeiro: resFinanceiro[0] || { total_entradas: 0, total_saidas: 0 }
         });
 
     } catch (e) {
@@ -298,8 +310,6 @@ app.get('/dashboard-data', async (req, res) => {
 });
 
 // --- MÓDULO DE ESTOQUE ---
-
-// 1. Cadastrar Produto
 // 1. Cadastrar Produto (Atualizado para incluir código de barras)
 app.post('/produtos', (req, res) => {
     const { nome, descricao, preco, custo, estoque_min, imagens, codigo } = req.body;
@@ -582,7 +592,7 @@ app.post('/fin-tipos', (req, res) => {
 });
 
 // --- FINANCEIRO: LIVRO CAIXA ---
-app.get('/fin-caixa', (req, res) => {
+/*app.get('/fin-caixa', (req, res) => {
     const sql = `
         SELECT lc.*, tl.descricao as tipo_nome, tl.tipo 
         FROM fin_livro_caixa lc
@@ -594,9 +604,42 @@ app.get('/fin-caixa', (req, res) => {
         res.send(results);
     });
 });
+*/
+
+app.get('/fin-caixa', (req, res) => {
+    // Pegamos as datas da URL. Se não vierem, pegamos o mês atual por padrão.
+    const inicio = req.query.inicio;
+    const fim = req.query.fim;
+
+    let sql = `
+        SELECT lc.*, tl.descricao as tipo_nome, tl.tipo 
+        FROM fin_livro_caixa lc
+        JOIN fin_tipos_lancamento tl ON lc.id_tipo_lancamento = tl.id
+        WHERE lc.indicativo_exclusao = FALSE`;
+    
+    const params = [];
+
+    if (inicio && fim) {
+        sql += ` AND lc.data_lancamento BETWEEN ? AND ?`;
+        params.push(inicio, fim);
+    }
+
+    sql += ` ORDER BY lc.data_lancamento DESC`;
+
+    db.query(sql, params, (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.send(results);
+    });
+});
 
 app.post('/fin-caixa', (req, res) => {
     const { id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario } = req.body;
+
+    // 🛡️ Verificação de segurança no servidor
+    if (!valor || valor <= 0) {
+        return res.status(400).send({ message: "Valor inválido para lançamento." });
+    }
+
     db.query("INSERT INTO fin_livro_caixa (id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario) VALUES (?,?,?,?,?)",
     [id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario], (err) => {
         if (err) return res.status(500).send(err);
@@ -631,6 +674,12 @@ app.delete('/fin-tipos/:id', (req, res) => {
 app.put('/fin-caixa/:id', (req, res) => {
     const { id } = req.params;
     const { id_tipo_lancamento, descricao, data_lancamento, valor } = req.body;
+
+    // 🛡️ Verificação de segurança no servidor
+    if (!valor || valor <= 0) {
+        return res.status(400).send({ message: "Valor inválido para lançamento." });
+    }
+
     const query = `
         UPDATE fin_livro_caixa 
         SET id_tipo_lancamento = ?, descricao = ?, data_lancamento = ?, valor = ? 
