@@ -563,6 +563,97 @@ app.delete('/usuarios/:id', (req, res) => {
     });
 });
 
+
+
+// --- FINANCEIRO: TIPOS DE LANÇAMENTO ---
+app.get('/fin-tipos', (req, res) => {
+    db.query("SELECT * FROM fin_tipos_lancamento WHERE indicativo_exclusao = FALSE ORDER BY descricao", (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.send(results);
+    });
+});
+
+app.post('/fin-tipos', (req, res) => {
+    const { descricao, tipo } = req.body;
+    db.query("INSERT INTO fin_tipos_lancamento (descricao, tipo) VALUES (?, ?)", [descricao, tipo], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Tipo cadastrado!" });
+    });
+});
+
+// --- FINANCEIRO: LIVRO CAIXA ---
+app.get('/fin-caixa', (req, res) => {
+    const sql = `
+        SELECT lc.*, tl.descricao as tipo_nome, tl.tipo 
+        FROM fin_livro_caixa lc
+        JOIN fin_tipos_lancamento tl ON lc.id_tipo_lancamento = tl.id
+        WHERE lc.indicativo_exclusao = FALSE
+        ORDER BY lc.data_lancamento DESC`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.send(results);
+    });
+});
+
+app.post('/fin-caixa', (req, res) => {
+    const { id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario } = req.body;
+    db.query("INSERT INTO fin_livro_caixa (id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario) VALUES (?,?,?,?,?)",
+    [id_tipo_lancamento, descricao, data_lancamento, valor, id_usuario], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Lançamento efetuado!" });
+    });
+});
+
+// Atualizar Tipo de Lançamento (PUT)
+app.put('/fin-tipos/:id', (req, res) => {
+    const { id } = req.params;
+    const { descricao, tipo } = req.body;
+    const query = "UPDATE fin_tipos_lancamento SET descricao = ?, tipo = ? WHERE id = ?";
+    
+    db.query(query, [descricao, tipo, id], (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Tipo de lançamento atualizado com sucesso!" });
+    });
+});
+
+// Exclusão Lógica de Tipo (DELETE - Soft Delete)
+app.delete('/fin-tipos/:id', (req, res) => {
+    const { id } = req.params;
+    const query = "UPDATE fin_tipos_lancamento SET indicativo_exclusao = TRUE WHERE id = ?";
+    
+    db.query(query, [id], (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Tipo de lançamento removido (Soft Delete)!" });
+    });
+});
+
+// Atualizar Lançamento do Livro Caixa (PUT)
+app.put('/fin-caixa/:id', (req, res) => {
+    const { id } = req.params;
+    const { id_tipo_lancamento, descricao, data_lancamento, valor } = req.body;
+    const query = `
+        UPDATE fin_livro_caixa 
+        SET id_tipo_lancamento = ?, descricao = ?, data_lancamento = ?, valor = ? 
+        WHERE id = ?`;
+    
+    db.query(query, [id_tipo_lancamento, descricao, data_lancamento, valor, id], (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Lançamento financeiro atualizado com sucesso!" });
+    });
+});
+
+// Exclusão Lógica de Lançamento (DELETE - Soft Delete)
+app.delete('/fin-caixa/:id', (req, res) => {
+    const { id } = req.params;
+    const query = "UPDATE fin_livro_caixa SET indicativo_exclusao = TRUE WHERE id = ?";
+    
+    db.query(query, [id], (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send({ message: "Lançamento cancelado com sucesso (Soft Delete)!" });
+    });
+});
+
+
 app.listen(3000, () => {
     console.log('Servidor rodando em http://localhost:3000');
 });
