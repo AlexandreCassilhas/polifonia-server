@@ -647,6 +647,26 @@ app.post('/fin-caixa', (req, res) => {
     });
 });
 
+// Rota para calcular o Saldo Anterior (Tudo antes da data de início)
+app.get('/fin-saldo-anterior', (req, res) => {
+    const dataInicio = req.query.inicio;
+
+    if (!dataInicio) return res.status(400).send({ message: "Data de início necessária" });
+
+    const sql = `
+        SELECT 
+            SUM(CASE WHEN tl.tipo = 'Entrada' THEN lc.valor ELSE 0 END) -
+            SUM(CASE WHEN tl.tipo = 'Saída' THEN lc.valor ELSE 0 END) as saldo_anterior
+        FROM fin_livro_caixa lc
+        JOIN fin_tipos_lancamento tl ON lc.id_tipo_lancamento = tl.id
+        WHERE lc.indicativo_exclusao = FALSE AND lc.data_lancamento < ?`;
+
+    db.query(sql, [dataInicio], (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.send({ saldoAnterior: results[0].saldo_anterior || 0 });
+    });
+});
+
 // Atualizar Tipo de Lançamento (PUT)
 app.put('/fin-tipos/:id', (req, res) => {
     const { id } = req.params;
